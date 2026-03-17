@@ -34,7 +34,7 @@ void event_handler(void *handler_args,
 
 /**
  * @brief Publishes status to MQTT.
- * @note Creates JSON payload with uptime; publishes to "waterfront/status". Logs on failure.
+ * @note Creates JSON payload with uptime; publishes to "waterfront/{location}/status". Logs on failure.
  */
 void mqtt_publish_status(void);
 
@@ -42,7 +42,7 @@ void mqtt_publish_status(void);
  * @brief Publishes slot status to MQTT.
  * @param slotId Slot ID.
  * @param jsonPayload JSON payload string.
- * @note Publishes to "waterfront/slot/status". Checks for connection; logs errors.
+ * @note Publishes to "waterfront/{location}/slot/status". Checks for connection; logs errors.
  */
 void mqtt_publish_slot_status(int slotId, const char *jsonPayload);
 
@@ -50,7 +50,7 @@ void mqtt_publish_slot_status(int slotId, const char *jsonPayload);
  * @brief Publishes retained compartment status to MQTT.
  * @param compartmentId Compartment ID.
  * @param jsonPayload JSON payload string.
- * @note Publishes retained to "waterfront/compartment/status". Checks for connection; logs errors.
+ * @note Publishes retained to "waterfront/{location}/compartment/status". Checks for connection; logs errors.
  */
 void mqtt_publish_retained_status(int compartmentId,
                                   const char *jsonPayload);
@@ -59,7 +59,7 @@ void mqtt_publish_retained_status(int compartmentId,
  * @brief Publishes acknowledgment to MQTT.
  * @param compartmentId Compartment ID.
  * @param action Action string.
- * @note Creates JSON payload; publishes to "waterfront/ack". Logs errors.
+ * @note Creates JSON payload; publishes to "waterfront/{location}/ack". Logs errors.
  */
 void mqtt_publish_ack(int compartmentId, const char *action);
 
