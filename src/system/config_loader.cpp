@@ -148,7 +148,7 @@ bool loadConfig() {
     size_t fileSize = ftell(configFile);
     fseek(configFile, 0, SEEK_SET);
     if (fileSize == 0 || fileSize >= sizeof(jsonBuffer)) {
-        ESP_LOGE("CONFIG", "config.json is empty or too large, using defaults");
+        ESP_LOGE("CONFIG", "config.json is empty or too large (%d bytes), using defaults", fileSize);
         fclose(configFile);
         vPortEnterCritical(&g_configMutex);
         g_config = getDefaultConfig();

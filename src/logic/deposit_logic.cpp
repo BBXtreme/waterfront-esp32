@@ -19,9 +19,8 @@ portMUX_TYPE depositMutex = portMUX_INITIALIZER_UNLOCKED;
 void overdueCallback(TimerHandle_t xTimer) {
     int compartmentId = (int)pvTimerGetTimerID(xTimer);
     ESP_LOGI("DEPOSIT", "Compartment %d overdue, auto-locking", compartmentId);
-    // Auto-lock: close the gate (assuming gate_control is available)
-    // TODO: Integrate with gate_control.h to close the gate
-    // For now, log and remove from activeTimers
+    // Auto-lock: close the gate (integrate with gate_control)
+    closeCompartmentGate(compartmentId);  // Assuming gate_control.h is included
     for (int i = 0; i < activeTimersCount; ) {
         if (activeTimers[i].compartmentId == compartmentId) {
             xTimerDelete(activeTimers[i].timerHandle, 0);
@@ -30,6 +29,7 @@ void overdueCallback(TimerHandle_t xTimer) {
                 activeTimers[j] = activeTimers[j + 1];
             }
             activeTimersCount--;
+            ESP_LOGD("DEPOSIT", "Removed timer for overdue compartment %d", compartmentId);
             break;
         } else {
             ++i;
@@ -48,6 +48,10 @@ void deposit_init() {
 }
 
 void startRental(int compartmentId, unsigned long durationSec) {
+    if (compartmentId < 1 || compartmentId > g_config.compartmentCount) {
+        ESP_LOGE("DEPOSIT", "Invalid compartment ID for rental: %d", compartmentId);
+        return;
+    }
     // Check if already active
     vPortEnterCritical(&depositMutex);
     for (int i = 0; i < activeTimersCount; i++) {
@@ -96,13 +100,14 @@ void checkOverdue() {
         if (elapsedSec > totalAllowedSec) {
             // Overdue: auto-lock (fallback if timer failed)
             ESP_LOGI("DEPOSIT", "Compartment %d overdue (fallback check), auto-locking", activeTimers[i].compartmentId);
-            // TODO: Close gate
+            closeCompartmentGate(activeTimers[i].compartmentId);  // Integrate
             xTimerDelete(activeTimers[i].timerHandle, 0);
             // Shift array
             for (int j = i; j < activeTimersCount - 1; j++) {
                 activeTimers[j] = activeTimers[j + 1];
             }
             activeTimersCount--;
+            ESP_LOGD("DEPOSIT", "Removed overdue timer for compartment %d", activeTimers[i].compartmentId);
         } else {
             ++i;
         }
@@ -111,6 +116,10 @@ void checkOverdue() {
 }
 
 void deposit_on_take(esp_mqtt_client_handle_t client) {
+    if (!client) {
+        ESP_LOGE("DEPOSIT", "Invalid MQTT client for take");
+        return;
+    }
     vPortEnterCritical(&depositMutex);
     deposit_held = true;
     rental_start_time = esp_timer_get_time() / 1000;
@@ -122,8 +131,13 @@ void deposit_on_take(esp_mqtt_client_handle_t client) {
 }
 
 void deposit_on_return(esp_mqtt_client_handle_t client) {
+    if (!client) {
+        ESP_LOGE("DEPOSIT", "Invalid MQTT client for return");
+        return;
+    }
     vPortEnterCritical(&depositMutex);
     if (!deposit_held) {
+        ESP_LOGW("DEPOSIT", "Deposit not held, ignoring return");
         vPortExitCritical(&depositMutex);
         return;
     }
@@ -134,16 +148,37 @@ void deposit_on_return(esp_mqtt_client_handle_t client) {
         ESP_LOGI("DEPOSIT", "Deposit released (on-time return)");
         // Publish deposit release event
         cJSON *doc = cJSON_CreateObject();
+        if (!doc) {
+            ESP_LOGE("DEPOSIT", "Failed to create JSON for release");
+            vPortExitCritical(&depositMutex);
+            return;
+        }
         cJSON_AddStringToObject(doc, "action", "release");
         cJSON_AddNumberToObject(doc, "timestamp", esp_timer_get_time() / 1000);
         char *payload = cJSON_PrintUnformatted(doc);
+        if (!payload) {
+            ESP_LOGE("DEPOSIT", "Failed to serialize JSON for release");
+            cJSON_Delete(doc);
+            vPortExitCritical(&depositMutex);
+            return;
+        }
         char topic[64];
         vPortEnterCritical(&g_configMutex);
-        char locationCode[32];
-        strcpy(locationCode, g_config.location.code);
+        int topicLen = snprintf(topic, sizeof(topic), "waterfront/%s/deposit/release", g_config.location.code);
         vPortExitCritical(&g_configMutex);
-        snprintf(topic, sizeof(topic), "waterfront/%s/deposit/release", locationCode);
-        esp_mqtt_client_publish(client, topic, payload, 0, 1, 0);
+        if (topicLen >= sizeof(topic)) {
+            ESP_LOGE("DEPOSIT", "Topic too long for release");
+            cJSON_free(payload);
+            cJSON_Delete(doc);
+            vPortExitCritical(&depositMutex);
+            return;
+        }
+        int msg_id = esp_mqtt_client_publish(client, topic, payload, 0, 1, 0);
+        if (msg_id >= 0) {
+            ESP_LOGD("DEPOSIT", "Published release, msg_id=%d", msg_id);
+        } else {
+            ESP_LOGE("DEPOSIT", "Failed to publish release");
+        }
         cJSON_free(payload);
         cJSON_Delete(doc);
     } else {

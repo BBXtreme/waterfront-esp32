@@ -1,4 +1,6 @@
 // src/main.cpp – Waterfront ESP32 MQTT Starter (PlatformIO + Arduino)
+// Updated to use config for WiFi and MQTT, added loadConfig call.
+// Note: This uses Arduino libraries; ensure PlatformIO framework is set to arduino.
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -25,9 +27,16 @@ void setup() {
   Serial.println("\n=== Waterfront ESP32 Boot ===");
   Serial.printf("Machine ID: %s\n", MACHINE_ID);
 
-  // === WiFi (fallback for testing – later replaced by provisioning) ===
+  // Load config
+  if (!loadConfig()) {
+    Serial.println("Failed to load config, using defaults");
+  }
+
+  // WiFi setup using config
+  vPortEnterCritical(&g_configMutex);
   WiFi.mode(WIFI_STA);
-  WiFi.begin(FALLBACK_SSID, FALLBACK_PASSWORD);
+  WiFi.begin(g_config.wifiProvisioning.fallbackSsid, g_config.wifiProvisioning.fallbackPass);
+  vPortExitCritical(&g_configMutex);
   Serial.print("Connecting WiFi...");
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 30) {
@@ -41,9 +50,11 @@ void setup() {
     Serial.println("\nWiFi failed – continuing anyway for testing");
   }
 
-  // === MQTT setup ===
-  mqtt.setServer(MQTT_BROKER, MQTT_PORT);
+  // MQTT setup using config
+  vPortEnterCritical(&g_configMutex);
+  mqtt.setServer(g_config.mqtt.broker, g_config.mqtt.port);
   mqtt.setCallback(mqttCallback);
+  vPortExitCritical(&g_configMutex);
   mqtt.setBufferSize(512);  // enough for JSON payloads
 
   pinMode(STATUS_LED_PIN, OUTPUT);
@@ -73,12 +84,14 @@ void loop() {
   }
 }
 
-// Connect to MQTT broker
+// Connect to MQTT broker using config
 bool connectMQTT() {
   Serial.print("Connecting MQTT...");
-  String clientId = MQTT_CLIENT_ID + "-" + String(random(0xffff), HEX);
-  
-  if (mqtt.connect(clientId.c_str(), MQTT_USERNAME, MQTT_PASSWORD)) {
+  vPortEnterCritical(&g_configMutex);
+  String clientId = g_config.mqtt.clientIdPrefix + "-" + String(random(0xffff), HEX);
+  bool result = mqtt.connect(clientId.c_str(), g_config.mqtt.username, g_config.mqtt.password);
+  vPortExitCritical(&g_configMutex);
+  if (result) {
     Serial.println("connected!");
     
     // Subscribe to unlock & return commands

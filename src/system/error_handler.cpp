@@ -73,20 +73,20 @@ void fatal_error(const char* msg, esp_err_t code = ESP_FAIL) {
     size_t alertLen = serializeJson(alertDoc, jsonBuffer, sizeof(jsonBuffer));
     if (alertLen >= sizeof(jsonBuffer)) {
         ESP_LOGE("FATAL", "Alert JSON buffer too small");
-        return;
-    }
-    char alertTopic[96];
-    vPortEnterCritical(&g_configMutex);
-    int alertTopicLen = snprintf(alertTopic, sizeof(alertTopic), "waterfront/%s/%s/alert", g_config.location.slug, g_config.location.code);
-    vPortExitCritical(&g_configMutex);
-    if (alertTopicLen >= sizeof(alertTopic)) {
-        ESP_LOGE("FATAL", "Alert topic too long for buffer, skipping alert publish");
     } else {
-        int msg_id = esp_mqtt_client_publish(mqttClient, alertTopic, jsonBuffer, 0, 1, 0);  // QoS 1, no retain
-        if (msg_id >= 0) {
-            ESP_LOGI("FATAL", "Published alert to %s, msg_id=%d", alertTopic, msg_id);
+        char alertTopic[96];
+        vPortEnterCritical(&g_configMutex);
+        int alertTopicLen = snprintf(alertTopic, sizeof(alertTopic), "waterfront/%s/%s/alert", g_config.location.slug, g_config.location.code);
+        vPortExitCritical(&g_configMutex);
+        if (alertTopicLen >= sizeof(alertTopic)) {
+            ESP_LOGE("FATAL", "Alert topic too long for buffer, skipping alert publish");
         } else {
-            ESP_LOGE("FATAL", "Failed to publish alert");
+            int msg_id = esp_mqtt_client_publish(mqttClient, alertTopic, jsonBuffer, 0, 1, 0);  // QoS 1, no retain
+            if (msg_id >= 0) {
+                ESP_LOGI("FATAL", "Published alert to %s, msg_id=%d", alertTopic, msg_id);
+            } else {
+                ESP_LOGE("FATAL", "Failed to publish alert");
+            }
         }
     }
 

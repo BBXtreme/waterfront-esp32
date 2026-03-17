@@ -4,6 +4,7 @@
 // Integrates with MQTT for real-time control.
 // Non-blocking: uses millis() state machine for servo control.
 // Added state machine with timeouts for stuck gates.
+// Enhanced with error checking, logging, and config usage.
 
 #include "gate_control.h"
 #include "config_loader.h"
@@ -46,30 +47,49 @@ void gate_init() {
         .freq_hz = LEDC_FREQUENCY,
         .clk_cfg = LEDC_AUTO_CLK
     };
-    ledc_timer_config(&ledc_timer);
+    esp_err_t ret = ledc_timer_config(&ledc_timer);
+    if (ret != ESP_OK) {
+        ESP_LOGE("GATE", "Failed to configure LEDC timer: %s", esp_err_to_name(ret));
+        return;
+    }
 
     // Initialize pins and servos for active compartments
     for (int i = 0; i < g_config.compartmentCount; i++) {
-        if (i < MAX_COMPARTMENTS) {
-            gpio_set_direction((gpio_num_t)g_config.compartments[i].limitOpenPin, GPIO_MODE_INPUT);
-            gpio_set_pull_mode((gpio_num_t)g_config.compartments[i].limitOpenPin, GPIO_PULLUP_ONLY);
-            gpio_set_direction((gpio_num_t)g_config.compartments[i].limitClosePin, GPIO_MODE_INPUT);
-            gpio_set_pull_mode((gpio_num_t)g_config.compartments[i].limitClosePin, GPIO_PULLUP_ONLY);
-
-            // Configure LEDC channel for servo
-            servo_channels[i].gpio_num = g_config.compartments[i].servoPin;
-            servo_channels[i].speed_mode = LEDC_MODE;
-            servo_channels[i].channel = (ledc_channel_t)i;
-            servo_channels[i].intr_type = LEDC_INTR_DISABLE;
-            servo_channels[i].timer_sel = LEDC_TIMER;
-            servo_channels[i].duty = 0;
-            servo_channels[i].hpoint = 0;
-            ledc_channel_config(&servo_channels[i]);
-
-            compartmentStates[i] = CLOSED;  // Start closed
+        if (i >= MAX_COMPARTMENTS) {
+            ESP_LOGW("GATE", "Compartment %d exceeds MAX_COMPARTMENTS, skipping", i + 1);
+            continue;
         }
+        esp_err_t gpio_ret = gpio_set_direction((gpio_num_t)g_config.compartments[i].limitOpenPin, GPIO_MODE_INPUT);
+        if (gpio_ret != ESP_OK) {
+            ESP_LOGE("GATE", "Failed to set limit open pin %d for compartment %d", g_config.compartments[i].limitOpenPin, i + 1);
+            continue;
+        }
+        gpio_set_pull_mode((gpio_num_t)g_config.compartments[i].limitOpenPin, GPIO_PULLUP_ONLY);
+        gpio_ret = gpio_set_direction((gpio_num_t)g_config.compartments[i].limitClosePin, GPIO_MODE_INPUT);
+        if (gpio_ret != ESP_OK) {
+            ESP_LOGE("GATE", "Failed to set limit close pin %d for compartment %d", g_config.compartments[i].limitClosePin, i + 1);
+            continue;
+        }
+        gpio_set_pull_mode((gpio_num_t)g_config.compartments[i].limitClosePin, GPIO_PULLUP_ONLY);
+
+        // Configure LEDC channel for servo
+        servo_channels[i].gpio_num = g_config.compartments[i].servoPin;
+        servo_channels[i].speed_mode = LEDC_MODE;
+        servo_channels[i].channel = (ledc_channel_t)i;
+        servo_channels[i].intr_type = LEDC_INTR_DISABLE;
+        servo_channels[i].timer_sel = LEDC_TIMER;
+        servo_channels[i].duty = 0;
+        servo_channels[i].hpoint = 0;
+        ret = ledc_channel_config(&servo_channels[i]);
+        if (ret != ESP_OK) {
+            ESP_LOGE("GATE", "Failed to configure LEDC channel for compartment %d: %s", i + 1, esp_err_to_name(ret));
+            continue;
+        }
+
+        compartmentStates[i] = CLOSED;  // Start closed
+        ESP_LOGI("GATE", "Initialized compartment %d", i + 1);
     }
-    ESP_LOGI("GATE", "Initialized for %d compartments", g_config.compartmentCount);
+    ESP_LOGI("GATE", "Gate control initialized for %d compartments", g_config.compartmentCount);
 }
 
 /**
@@ -78,7 +98,10 @@ void gate_init() {
  * @note Sets state to OPENING and starts servo movement.
  */
 void openCompartmentGate(int compartmentId) {
-    if (compartmentId < 1 || compartmentId > g_config.compartmentCount) return;
+    if (compartmentId < 1 || compartmentId > g_config.compartmentCount) {
+        ESP_LOGE("GATE", "Invalid compartment ID: %d", compartmentId);
+        return;
+    }
     int idx = compartmentId - 1;
     vPortEnterCritical(&gateMutex);
     if (compartmentStates[idx] == CLOSED || compartmentStates[idx] == ERROR) {
@@ -89,6 +112,8 @@ void openCompartmentGate(int compartmentId) {
         ledc_update_duty(LEDC_MODE, (ledc_channel_t)idx);
         retryCounts[idx] = 0;
         ESP_LOGI("GATE", "Starting open for compartment %d", compartmentId);
+    } else {
+        ESP_LOGW("GATE", "Cannot open compartment %d, current state: %d", compartmentId, compartmentStates[idx]);
     }
     vPortExitCritical(&gateMutex);
 }
@@ -99,7 +124,10 @@ void openCompartmentGate(int compartmentId) {
  * @note Sets state to CLOSING and starts servo movement.
  */
 void closeCompartmentGate(int compartmentId) {
-    if (compartmentId < 1 || compartmentId > g_config.compartmentCount) return;
+    if (compartmentId < 1 || compartmentId > g_config.compartmentCount) {
+        ESP_LOGE("GATE", "Invalid compartment ID: %d", compartmentId);
+        return;
+    }
     int idx = compartmentId - 1;
     vPortEnterCritical(&gateMutex);
     if (compartmentStates[idx] == OPEN || compartmentStates[idx] == ERROR) {
@@ -110,6 +138,8 @@ void closeCompartmentGate(int compartmentId) {
         ledc_update_duty(LEDC_MODE, (ledc_channel_t)idx);
         retryCounts[idx] = 0;
         ESP_LOGI("GATE", "Starting close for compartment %d", compartmentId);
+    } else {
+        ESP_LOGW("GATE", "Cannot close compartment %d, current state: %d", compartmentId, compartmentStates[idx]);
     }
     vPortExitCritical(&gateMutex);
 }
@@ -121,7 +151,10 @@ void closeCompartmentGate(int compartmentId) {
  * @note Checks limit switches for compartment 1.
  */
 const char* getCompartmentGateState(int compartmentId) {
-    if (compartmentId < 1 || compartmentId > g_config.compartmentCount) return "unknown";
+    if (compartmentId < 1 || compartmentId > g_config.compartmentCount) {
+        ESP_LOGE("GATE", "Invalid compartment ID for state check: %d", compartmentId);
+        return "unknown";
+    }
     int idx = compartmentId - 1;
     vPortEnterCritical(&gateMutex);
     if (gpio_get_level((gpio_num_t)g_config.compartments[idx].limitOpenPin) == 0) {
@@ -149,7 +182,7 @@ void gate_task() {
                 // Timeout: retry or error
                 if (retryCounts[i] < RETRY_ATTEMPTS) {
                     retryCounts[i]++;
-                    ESP_LOGW("GATE", "Compartment %d stuck, retrying (attempt %d)", i + 1, retryCounts[i]);
+                    ESP_LOGW("GATE", "Compartment %d stuck, retrying (attempt %d/%d)", i + 1, retryCounts[i], RETRY_ATTEMPTS);
                     if (compartmentStates[i] == OPENING) {
                         openCompartmentGate(i + 1);
                     } else {
@@ -165,12 +198,12 @@ void gate_task() {
                 if (compartmentStates[i] == OPENING) {
                     if (gpio_get_level((gpio_num_t)g_config.compartments[i].limitOpenPin) == 0) {
                         compartmentStates[i] = OPEN;
-                        ESP_LOGI("GATE", "Compartment %d gate opened", i + 1);
+                        ESP_LOGI("GATE", "Compartment %d gate opened successfully", i + 1);
                     }
                 } else if (compartmentStates[i] == CLOSING) {
                     if (gpio_get_level((gpio_num_t)g_config.compartments[i].limitClosePin) == 0) {
                         compartmentStates[i] = CLOSED;
-                        ESP_LOGI("GATE", "Compartment %d gate closed", i + 1);
+                        ESP_LOGI("GATE", "Compartment %d gate closed successfully", i + 1);
                     }
                 }
             }
