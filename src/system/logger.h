@@ -3,13 +3,24 @@
 
 #include <esp_log.h>
 
-// Initialize logger with config
+/**
+ * @brief Initializes logger with config-based level.
+ * @note Sets ESP log level; logs initialization.
+ */
 void logger_init();
 
-// Log to file if verbose
+/**
+ * @brief Logs to file if log level allows.
+ * @param tag Log tag.
+ * @param message Log message.
+ * @note Adds timestamp; rotates file if size exceeds limit. Logs file errors.
+ */
 void logger_log_to_file(const char* tag, const char* message);
 
-// Rotate log file if size > threshold
+/**
+ * @brief Rotates log file.
+ * @note Renames file; logs success/failure.
+ */
 void logger_rotate_log_file();
 
 #endif // LOGGER_H
