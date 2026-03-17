@@ -1,0 +1,16 @@
+{
+  "wifi": {
+    "ssid": "YourSSID",
+    "password": "YourPass"
+  },
+  "mqtt": {
+    "broker": "broker.example.com",
+    "port": 1883,
+    "username": "",
+    "password": "",
+    "clientId": "kayak-001"
+  },
+  "machineId": "kayak-bremen-01",
+  "relayPin": 5,
+  "sensorPin": 18
+}
