@@ -1,0 +1,31 @@
+name: ESP32 CI
+on: [push, pull_request]
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up PlatformIO
+      uses: platformio/platformio-action@v1
+    - name: Install dependencies
+      run: pio pkg install
+    - name: Lint code
+      run: pio check
+    - name: Build project
+      run: pio run
+    - name: Run unit tests
+      run: pio test -e unit_test
+    - name: Run performance tests
+      run: pio test -e unit_test --filter "*Performance*"
+    - name: Run integration tests
+      run: pio test -e unit_test --filter "*Integration*"
+    - name: Run HIL tests
+      run: pio test -e unit_test --filter "*HIL*"
+    - name: Generate test coverage (if available)
+      run: |
+        # Note: Catch2 doesn't have built-in coverage; use gcov if integrated
+        # For now, just log test results
+        echo "Tests completed; check logs for coverage"
+    - name: Notify on failure
+      if: failure()
+      run: echo "Build or tests failed; check logs"

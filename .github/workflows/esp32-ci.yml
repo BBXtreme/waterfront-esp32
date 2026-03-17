@@ -1,0 +1,70 @@
+name: ESP32 CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'waterfront-esp32/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'waterfront-esp32/**'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install ESP-IDF
+      run: |
+        mkdir -p ~/esp
+        cd ~/esp
+        git clone -b v5.1 --recursive https://github.com/espressif/esp-idf.git
+        ./esp-idf/install.sh
+        echo "source ~/esp/esp-idf/export.sh" >> ~/.bashrc
+
+    - name: Install clang-format
+      run: sudo apt-get install -y clang-format
+
+    - name: Check code formatting with clang-format
+      run: |
+        source ~/esp/esp-idf/export.sh
+        cd waterfront-esp32
+        find src include -name "*.cpp" -o -name "*.h" | xargs clang-format --dry-run --Werror --style=file
+      # This will fail if formatting issues are found
+
+    - name: Install Doxygen
+      run: sudo apt-get install -y doxygen graphviz
+
+    - name: Generate Doxygen documentation
+      run: |
+        source ~/esp/esp-idf/export.sh
+        cd waterfront-esp32
+        doxygen Doxyfile
+        # Docs will be generated in docs/html/
+
+    - name: Upload Doxygen docs as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: doxygen-docs
+        path: waterfront-esp32/docs/html/
+
+    - name: Build with ESP-IDF
+      run: |
+        source ~/esp/esp-idf/export.sh
+        cd waterfront-esp32
+        idf.py build
+
+    - name: Run tests with ESP-IDF
+      run: |
+        source ~/esp/esp-idf/export.sh
+        cd waterfront-esp32
+        idf.py test

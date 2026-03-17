@@ -1,0 +1,87 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Linker files
+*.ilk
+
+# Debugger Files
+*.pdb
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# debug information files
+*.dwo
+
+
+# PlatformIO
+.pio/
+.vscode/ipch/
+*.pyc
+__pycache__/
+
+# macOS / temp
+.DS_Store
+Thumbs.db
+
+# LittleFS sensitive
+data/config.json
+
+# PlatformIO
+.pio/
+.vscode/ipch/
+build/
+*.elf
+*.bin
+*.hex
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# LittleFS / config (never commit real credentials)
+data/config.json
+data/*.bak
+
+# Logs & temp
+*.log
+logs/
+temp/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Dependencies
+lib_deps/
+.pio/libdeps/
