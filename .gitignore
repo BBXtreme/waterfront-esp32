@@ -85,3 +85,4 @@ temp/
 # Dependencies
 lib_deps/
 .pio/libdeps/
+.aider*
