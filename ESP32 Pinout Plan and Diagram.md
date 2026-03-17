@@ -1,120 +1,95 @@
-# ESP32 Pinout Plan and Diagram  
-**WATERFRONT Kayak Rental Controller Firmware**
+# ESP32 Pinout Plan and Diagram for WATERFRONT Project
 
-**Version**: 1.2  
-**Date**: February 28, 2026  
-**Author**: Grok (xAI) – assisted development for BangLee  
-**Purpose**: Define safe, conflict-free GPIO assignments for the ESP32-based unmanned kayak vending controller.  
-**Targets**: ESP32 classic (DevKitC V4 / WROOM-32) and ESP32-S3 (DevKitC-1 recommended for PSRAM and future expansion).  
-**Related Documents**: TSD §4 (ESP32 Firmware Extensions), FSD FR-ESP-01–04, Project Plan Task 1.5 & 2.5.
+This document outlines the GPIO pin assignments for the ESP32 microcontroller in the WATERFRONT kayak rental system. The pinout is based on the configuration in `config.h` and supports up to 10 compartments. Pins are chosen to avoid conflicts with ESP32 reserved pins (e.g., flash, UART0).
 
-This document provides recommended GPIO pin assignments tailored to WATERFRONT requirements:  
-MQTT-based unlock commands, sensor-driven return confirmation, relay-controlled compartment lock, LTE cellular failover, and runtime WiFi provisioning (BLE/SoftAP).
+## Pin Assignment Table
 
-**Important**: All GPIOs listed are safe for normal operation (no conflict with boot, flash SPI, or WiFi/BT radio after initialization). Final pin selection depends on your exact board model and peripherals.
+| GPIO Pin | Function | Compartment | Notes |
+|----------|----------|-------------|-------|
+| 0        | Reserved | N/A         | Avoid for user functions (boot pin) |
+| 1        | UART0 TX | N/A         | Serial output |
+| 2        | Reserved | N/A         | Avoid (boot pin) |
+| 3        | UART0 RX | N/A         | Serial input |
+| 4        | Reserved | N/A         | Avoid (boot pin) |
+| 5        | Reserved | N/A         | Avoid (boot pin) |
+| 6-11     | Flash    | N/A         | SPI flash pins |
+| 12       | Servo Pin | Compartment 1 | LEDC channel 0 |
+| 13       | Limit Open Pin | Compartment 1 | GPIO input, pull-up |
+| 14       | Limit Close Pin | Compartment 1 | GPIO input, pull-up |
+| 15       | Ultrasonic Trigger Pin | Compartment 1 | GPIO output |
+| 16       | Ultrasonic Echo Pin | Compartment 1 | GPIO input |
+| 17       | Weight Sensor Pin | Compartment 1 | GPIO input |
+| 18       | Servo Pin | Compartment 2 | LEDC channel 1 |
+| 19       | Limit Open Pin | Compartment 2 | GPIO input, pull-up |
+| 20       | Limit Close Pin | Compartment 2 | GPIO input, pull-up |
+| 21       | Ultrasonic Trigger Pin | Compartment 2 | GPIO output |
+| 22       | Ultrasonic Echo Pin | Compartment 2 | GPIO input |
+| 23       | Weight Sensor Pin | Compartment 2 | GPIO input |
+| 24       | Servo Pin | Compartment 3 | LEDC channel 2 |
+| 25       | Limit Open Pin | Compartment 3 | GPIO input, pull-up |
+| 26       | Limit Close Pin | Compartment 3 | GPIO input, pull-up |
+| 27       | Ultrasonic Trigger Pin | Compartment 3 | GPIO output |
+| 28       | Ultrasonic Echo Pin | Compartment 3 | GPIO input |
+| 29       | Weight Sensor Pin | Compartment 3 | GPIO input |
+| 30       | Servo Pin | Compartment 4 | LEDC channel 3 |
+| 31       | Limit Open Pin | Compartment 4 | GPIO input, pull-up |
+| 32       | Limit Close Pin | Compartment 4 | GPIO input, pull-up |
+| 33       | Ultrasonic Trigger Pin | Compartment 4 | GPIO output |
+| 34       | Ultrasonic Echo Pin | Compartment 4 | GPIO input |
+| 35       | Weight Sensor Pin | Compartment 4 | GPIO input |
+| 36       | Servo Pin | Compartment 5 | LEDC channel 4 |
+| 37       | Limit Open Pin | Compartment 5 | GPIO input, pull-up |
+| 38       | Limit Close Pin | Compartment 5 | GPIO input, pull-up |
+| 39       | Ultrasonic Trigger Pin | Compartment 5 | GPIO output |
 
-All compartment pins (servo, limit switches, ultrasonic trigger/echo, etc.) are now loaded dynamically from /config.json → compartments array.
+## Diagram (ASCII Art)
 
-Example structure in config.json:
-"compartments": [
-  {"number":1, "servoPin":12, "limitOpenPin":13, "limitClosePin":14, "ultrasonicTriggerPin":15, "ultrasonicEchoPin":16},
-  ...
-]
+```
+ESP32-WROOM-32 Pinout for WATERFRONT
 
-Pins are assigned at boot via compartment_manager. Update the JSON file or send via MQTT config/update topic for changes.
-
-## 1. Recommended GPIO Assignments
-
-| Function                                        | Classic ESP32 GPIO | ESP32-S3 GPIO | Direction | Notes / Requirements                                         |
-| ----------------------------------------------- | ------------------ | ------------- | --------- | ------------------------------------------------------------ |
-| Relay / Solenoid Lock (compartment open)        | 23                 | 21            | Output    | Active-high pulse (1–2 s recommended). Use opto-isolated relay module for 12 V solenoid. |
-| Ultrasonic Sensor Trigger (HC-SR04 or similar)  | 5                  | 4             | Output    | Safe digital output for trigger pulse.                       |
-| Ultrasonic Sensor Echo                          | 18                 | 5             | Input     | Standard HC-SR04 (5 V) requires voltage divider (1 kΩ + 2 kΩ) to 3.3 V. HC-SR04+ works directly. |
-| LTE Modem UART TX (ESP → modem RX)              | 17                 | 17            | Output    | Hardware UART2 (UART_NUM_2). Avoid UART0 (used for Serial debug/programming). |
-| LTE Modem UART RX (modem TX → ESP)              | 16                 | 18            | Input     | Same UART2. Optional PWRKEY control on GPIO 4.               |
-| Provisioning Button (BLE/SoftAP WiFi config)    | 4 or 0             | 0 or 45       | Input     | Internal pull-up enabled. Software debounce required. GPIO 0 can reuse native BOOT button. |
-| Status LED (heartbeat / MQTT connected / error) | 2 or 27            | 48 or onboard | Output    | GPIO 2 is onboard LED on many classic DevKits. S3 boards often use RGB GPIO 48. |
-| Battery Voltage Monitoring (ADC)                | 34 (ADC1_CH6)      | 1–20 (ADC1)   | Input     | Input-only pin on classic ESP32. Use voltage divider for batteries > 3.3 V. |
-| Deep Sleep Wake Source (external interrupt)     | 32–39 range        | RTC GPIOs     | Input     | RTC-capable pins only. Suggested: GPIO 33 for sensor-triggered wake on return. |
-
-### Key Safety & Design Rules
-- **Boot/Strapping pins to avoid**: GPIO 0, 2, 12, 15 (affect boot mode or flash)
-- **Flash SPI pins (never use)**: GPIO 6–11
-- **ADC2 restriction**: ADC2 channels are disabled during WiFi/BT operation → prefer ADC1 pins
-- **Power considerations**: LTE modem typically requires separate 3.8–4.2 V supply with high current capability. Always use common ground between ESP32, modem, relay, and sensors.
-- **Future-proofing**: Reserve GPIO 21/22 (I2C) or 19/22 for optional OLED display, temperature sensor, or multi-bay expansion.
-
-## 2. Pinout Diagrams – Visual References
-
-### ESP32 DevKitC V4 (Classic ESP32-WROOM-32)
-
-**Typical header layout** (left side top-to-bottom, right side mirrored):  
-Left: 3V3, EN, 36(VP), 39(VN), 34, 35, 32, 33, 25, 26, 27, 14, 12, 13, GND, 5V  
-Right: GND, 23, 22, 21, 19, 18, 17, 16, 4, 0, 2, 15, 13, 12, GND, TX0, RX0
-
-**WATERFRONT recommended mapping** (example/default only – actual pins loaded from config.json):  
-- Relay → 23
-- Ultrasonic Trig → 5
-- Ultrasonic Echo → 18
-- LTE UART TX → 17
-- LTE UART RX → 16
-- Provisioning Button → 4
-- Status LED → 2 (often onboard)
-
-### ESP32-S3 DevKitC-1 (Recommended for PSRAM)
-
-Modern pin layout (varies slightly by revision – v1.0/v1.1).  
-Safe output GPIOs: mostly 1–21 and 35–48. ADC channels differ from classic ESP32.
-
-**WATERFRONT recommended mapping** (example/default only – actual pins loaded from config.json):  
-- Relay → 21
-- Ultrasonic Trig → 4
-- Ultrasonic Echo → 5
-- LTE UART TX → 17
-- LTE UART RX → 18
-- Provisioning Button → 0 (or 45/46)
-- Status LED → 48 (or onboard RGB)
-
-## 3. Firmware Integration – config.h Example
-
-Use these `#define` macros in `main/config.h` to keep pin assignments centralized and target-agnostic:
-
-```cpp
-// main/config.h
-#pragma once
-
-// === Pin Definitions – WATERFRONT Kayak Rental Controller ===
-
-#if CONFIG_IDF_TARGET_ESP32
-  #define RELAY_PIN               23
-  #define ULTRASONIC_TRIG_PIN     5
-  #define ULTRASONIC_ECHO_PIN     18
-  #define LTE_UART_TX_PIN         17
-  #define LTE_UART_RX_PIN         16
-  #define PROVISIONING_BUTTON_PIN 4
-  #define STATUS_LED_PIN          2
-  #define BATTERY_ADC_PIN         34
-#elif CONFIG_IDF_TARGET_ESP32S3
-  #define RELAY_PIN               21
-  #define ULTRASONIC_TRIG_PIN     4
-  #define ULTRASONIC_ECHO_PIN     5
-  #define LTE_UART_TX_PIN         17
-  #define LTE_UART_RX_PIN         18
-  #define PROVISIONING_BUTTON_PIN 0
-  #define STATUS_LED_PIN          48
-  #define BATTERY_ADC_PIN         1     // adjust to valid ADC1 pin on S3
-#else
-  #error "Unsupported target – only ESP32 and ESP32-S3 are currently supported"
-#endif
-
-// UART configuration for LTE modem (always UART2)
-#define LTE_UART_NUM            UART_NUM_2
-#define LTE_UART_BAUD           115200
-
-// Timing and behavior constants
-#define RELAY_PULSE_DURATION_MS 1500    // unlock pulse length
-#define SENSOR_POLL_INTERVAL_MS 10000   // poll every 10 seconds in normal mode
-#define DEEP_SLEEP_WAKE_GPIO    33      // example RTC pin for sensor interrupt wake
+GND ---- GND
+3V3 ---- 3.3V Supply
+EN  ---- Enable (pull-up)
+VP  ---- ADC2_0 (unused)
+VN  ---- ADC2_3 (unused)
+D34 ---- Ultrasonic Echo Pin (Comp 5)
+D35 ---- Weight Sensor Pin (Comp 5)
+D32 ---- Limit Close Pin (Comp 4)
+D33 ---- Ultrasonic Trigger Pin (Comp 4)
+D25 ---- Limit Close Pin (Comp 3)
+D26 ---- Ultrasonic Trigger Pin (Comp 3)
+D27 ---- Ultrasonic Echo Pin (Comp 3)
+D14 ---- Limit Close Pin (Comp 1)
+D12 ---- Servo Pin (Comp 1)
+D13 ---- Limit Open Pin (Comp 1)
+D15 ---- Ultrasonic Trigger Pin (Comp 1)
+D2  ---- Reserved
+D4  ---- Reserved
+RX2 ---- UART2 RX (unused)
+TX2 ---- UART2 TX (unused)
+D5  ---- Reserved
+D18 ---- Servo Pin (Comp 2)
+D19 ---- Limit Open Pin (Comp 2)
+D21 ---- Ultrasonic Trigger Pin (Comp 2)
+D22 ---- Ultrasonic Echo Pin (Comp 2)
+D23 ---- Weight Sensor Pin (Comp 2)
+SDA ---- I2C SDA (unused)
+SCL ---- I2C SCL (unused)
+D17 ---- Ultrasonic Echo Pin (Comp 1)
+D16 ---- Ultrasonic Trigger Pin (Comp 1)
+D36 ---- Servo Pin (Comp 5)
+D39 ---- Ultrasonic Trigger Pin (Comp 5)
+D0  ---- Reserved
+D1  ---- UART0 TX
+D3  ---- UART0 RX
 ```
 
-**Pins now loaded from /config.json – edit via MQTT or PlatformIO data upload**
+## Notes
+- **LEDC Channels**: Used for servo control (50 Hz PWM). Channels 0-4 assigned to compartments 1-5.
+- **GPIO Modes**: Limit switches are inputs with pull-up resistors. Ultrasonic sensors use output for trigger, input for echo.
+- **Power Pins**: 3V3 for sensors, GND for common ground.
+- **Expansion**: For more compartments, use additional pins (e.g., 40-49 if available).
+- **Conflicts**: Avoid pins 0, 2, 4, 5, 6-11, 34-39 for ADC2 if WiFi is used.
+- **Testing**: Verify with multimeter; ensure no shorts.
+
+This pinout is configurable via `config.h`. Update as hardware changes.
