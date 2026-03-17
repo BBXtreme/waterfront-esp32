@@ -5,6 +5,7 @@
 // Date: 2026-02-28
 // Note: Provides non-blocking gate operations for kayak compartments.
 // Enhanced with detailed comments and debugging externs.
+// Integrates with config for pin assignments.
 
 #ifndef GATE_CONTROL_H
 #define GATE_CONTROL_H
@@ -23,6 +24,7 @@ extern int retryCounts[MAX_COMPARTMENTS]; ///< Retry counts for failed operation
  * @brief Initializes gate control for all compartments.
  *        Sets up servos, limit switches, and initial states based on configuration.
  * @note Configures LEDC timers/channels; logs errors for debugging.
+ *       Must be called before using gate functions.
  */
 void gate_init();
 
@@ -31,6 +33,7 @@ void gate_init();
  *        Sets the target state to open; actual movement is handled in gate_task().
  * @param compartmentId The ID of the compartment to open (1-based index).
  * @note Validates ID; logs invalid attempts. Thread-safe with mutex.
+ *       Uses config for servo pin and duty cycle.
  */
 void openCompartmentGate(int compartmentId);
 
@@ -39,6 +42,7 @@ void openCompartmentGate(int compartmentId);
  *        Sets the target state to close; actual movement is handled in gate_task().
  * @param compartmentId The ID of the compartment to close (1-based index).
  * @note Validates ID; logs invalid attempts. Thread-safe with mutex.
+ *       Uses config for servo pin and duty cycle.
  */
 void closeCompartmentGate(int compartmentId);
 
@@ -47,6 +51,7 @@ void closeCompartmentGate(int compartmentId);
  * @param compartmentId The ID of the compartment to query (1-based index).
  * @return A string representing the gate state ("open", "closed", or "unknown").
  * @note Checks limit switches; thread-safe with mutex.
+ *       Uses config for limit switch pins.
  */
 const char* getCompartmentGateState(int compartmentId);
 
@@ -55,6 +60,7 @@ const char* getCompartmentGateState(int compartmentId);
  *        Should be called periodically from the main loop to process gate operations.
  *        Checks limit switches and updates states accordingly.
  * @note Handles timeouts/retries; logs state changes and errors for debugging.
+ *       Non-blocking; call in a loop.
  */
 void gate_task();
 

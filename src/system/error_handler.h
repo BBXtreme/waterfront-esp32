@@ -5,6 +5,7 @@
  * @date 2026-02-28
  * @note Provides fatal error function for production stability.
  *       Enhanced with detailed comments and edge case notes.
+ *       Publishes to MQTT for remote monitoring.
  */
 
 #ifndef ERROR_HANDLER_H
@@ -18,6 +19,7 @@
  * @param code ESP error code.
  * @note Logs error; publishes to MQTT debug/alert topics if connected/debug enabled; restarts after delay.
  *       Edge cases: MQTT not connected (skips publish), invalid code (logs as is), buffer overflow (logs error).
+ *       Uses config for topic paths and debug mode.
  */
 void fatal_error(const char* msg, esp_err_t code);
 

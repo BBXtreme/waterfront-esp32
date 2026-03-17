@@ -20,6 +20,7 @@ extern int activeTimersCount; ///< Number of active timers
 /**
  * @brief Initializes deposit logic.
  * @note Resets state; thread-safe with mutex. Logs initialization.
+ *       Must be called at startup.
  */
 void deposit_init();
 
@@ -28,12 +29,14 @@ void deposit_init();
  * @param compartmentId The compartment ID.
  * @param durationSec The rental duration in seconds.
  * @note Validates ID; creates FreeRTOS timer; logs errors on failure. Thread-safe.
+ *       Uses config for grace period.
  */
 void startRental(int compartmentId, unsigned long durationSec);
 
 /**
  * @brief Checks for overdue rentals.
  * @note Fallback check; removes expired timers; logs overdue events. Thread-safe.
+ *       Calls gate control to auto-lock.
  */
 void checkOverdue();
 
@@ -41,6 +44,7 @@ void checkOverdue();
  * @brief Handles deposit on take action.
  * @param client MQTT client for publishing.
  * @note Sets deposit held; logs action. Validates client.
+ *       Uses config for duration.
  */
 void deposit_on_take(esp_mqtt_client_handle_t client);
 
@@ -48,6 +52,7 @@ void deposit_on_take(esp_mqtt_client_handle_t client);
  * @brief Handles deposit on return action.
  * @param client MQTT client for publishing.
  * @note Checks elapsed time; releases deposit if on-time; publishes MQTT; logs. Validates client.
+ *       Publishes to config-based topic.
  */
 void deposit_on_return(esp_mqtt_client_handle_t client);
 
